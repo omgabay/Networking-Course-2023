@@ -3,22 +3,38 @@
 
 #include <iostream>
 #include <string>
-using namespace std; 
+#include <string.h>
+
+using namespace std;
 #pragma warning(disable : 4996)
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-
 #pragma comment(lib, "Ws2_32.lib")
 #include <winsock2.h> 
-#include <string.h>
-
+#include <windows.h>
+#define SEND_FAILURE -1 
 #define TIME_PORT	27015
+
+
 
 
 void displayMenu();
 void displayCityMenu();
+double run_delay_measurement();
+double run_RTT_measurement();
+int sendMessage(const char* message);
 
+
+SOCKET connSocket;
+sockaddr_in server;
+
+
+char sendBuff[255];
+char recvBuff[255];
+// Send and receive data.
+int bytesSent = 0;
+int bytesRecv = 0;
 
 int main()
 {
@@ -32,10 +48,10 @@ int main()
 
     // Client side:
     // Create a socket and connect to an internet address.
-    SOCKET connSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    connSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (INVALID_SOCKET == connSocket)
     {
-        cout << "Time Client: Error at socket(): " << WSAGetLastError() << endl;
+        std::cout << "Time Client: Error at socket(): " << WSAGetLastError() << endl;
         WSACleanup();
         return -1;
     }
@@ -44,21 +60,19 @@ int main()
     // Need to assemble the required data for connection in sockaddr structure.
 
     // Create a sockaddr_in object called server. 
-    sockaddr_in server;
+    
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
     server.sin_port = htons(TIME_PORT);
 
-    // Send and receive data.
-    int bytesSent = 0;
-    int bytesRecv = 0;
-    char sendBuff[255];
-    char recvBuff[255];
+
+   
 
 
 
     std::cout << "Welcome to Omer's Time Client!\n";
     std::string userInput; 
+    double delay, RTT;
     do {
         displayMenu();
         std::cin >> userInput; 
@@ -66,68 +80,115 @@ int main()
             int option = stoi(userInput);
             switch (option) {
                 case 1:
-                    strcpy(sendBuff, "time");
+                    bytesRecv = sendMessage("time");
                     break;
                 case 2: 
-                    strcpy(sendBuff, "time HH:MM:ss");
+                    bytesRecv = sendMessage("time HH:MM:ss");
                     break; 
                 case 3: 
-                    strcpy(sendBuff, "time epoch");
+                    //strcpy(sendBuff, "time epoch");
+                    bytesRecv = sendMessage("time epoch");
                     break; 
-                case 4:
-                    strcpy(sendBuff, "banana");
-                    cerr << "NOT YET IMPLEMENTED\n";
-                    break;
-                case 5:
-                    strcpy(sendBuff, "banana");
-                    cerr << "NOT YET IMPLEMENTED\n";
+                case 4:                   
+                    delay = run_delay_measurement();
+                    if (delay == -1) {
+                        return -1;
+                    }
+                    cout << "Average delay between client and server " << delay << endl; 
+                    break;                    
+                case 5:                  
+                    RTT = run_RTT_measurement();
+                    if (RTT == -1) {
+                        return -1; 
+                    }
+                    cout << "Average RTT between client-server " << RTT << endl;
                     break;
                 case 6: 
-                    strcpy(sendBuff, "time HH:MM");
+                    sendMessage("time HH:MM");
                     break;
                 case 7: 
-                    strcpy(sendBuff, "time YYYY");
+                    bytesRecv = sendMessage("time YYYY");
                     break;
                 case 8: 
-                    strcpy(sendBuff, "time DD-MM");
+                    sendMessage("time DD-MM");
                     break;
                 case 9: 
-                    strcpy(sendBuff, "time sec_from_month_start");
+                    bytesRecv = sendMessage("time sec_from_month_start");
                     break;
                 case 10: 
-                    strcpy(sendBuff, "time WEEK_NO");
+                    bytesRecv = sendMessage("time WEEK_NO");
                     break;
                 case 11: 
-                    strcpy(sendBuff, "time DAYLIGHT");
+                    bytesRecv = sendMessage("time DAYLIGHT");
                     break;
                 case 12:
                     displayCityMenu();                    
                     std::cin >> userInput; 
                     int cityChoice = stoi(userInput);                    
                     if (cityChoice == 1) {
-                        strcpy(sendBuff, "timezone PRAGUE");
+                        bytesRecv = sendMessage("timezone PRAGUE");
                     }
                     else if (cityChoice == 2) {
-                        strcpy(sendBuff, "timezone NEW YORK");
+                        bytesRecv = sendMessage("timezone NEW YORK");
                     }
                     else if (cityChoice == 3) {
-                        strcpy(sendBuff, "timezone BERLIN");
+                        bytesRecv = sendMessage("timezone BERLIN");
                     }
                     else if (cityChoice == 4) {
-                        strcpy(sendBuff, "timezone DOHA");
+                        bytesRecv = sendMessage("timezone DOHA");
                     }
                     else {
-                        strcpy(sendBuff, "timezone UTC");
+                        bytesRecv = sendMessage("timezone UTC");
                     }             
-                    break;
-              
-
+                    break;            
             }
         }
         catch (const std::invalid_argument& ia) {       
             continue; 
         }
+                
 
+      
+        cout << "Time Client recieved: " << bytesRecv << "Bytes.\n" << "Message: " << recvBuff << std::endl;
+
+        
+    }while (userInput[0] != 'q' || userInput[0] != 'Q');
+
+    
+    
+}
+
+double run_delay_measurement() {
+    DWORD previous_ts, timestamp; 
+    double average_delay = 0.0;
+    char message[] = "diagnostics delay";
+
+    if (sendMessage(message) == SEND_FAILURE) {
+        return -1;
+    }
+    timestamp = stoul(recvBuff);
+
+    
+    for (int i = 0; i < 99; i++){
+        previous_ts = timestamp;        
+        if (sendMessage(message) == SEND_FAILURE) {
+            return -1; 
+        }
+        timestamp = stoul(recvBuff);
+     
+        average_delay += (timestamp - previous_ts);
+    }
+    average_delay /= 99; 
+    return average_delay; 
+}
+
+double run_RTT_measurement() {
+    double average_RTT = 0.0; 
+    DWORD send_ts, receive_ts;
+    strcpy(sendBuff, "diagnostics rtt");
+    for (int i = 0; i < 100; i++) {
+        
+        send_ts = GetTickCount();
         bytesSent = sendto(connSocket, sendBuff, (int)strlen(sendBuff), 0, (const sockaddr*)&server, sizeof(server));
         if (SOCKET_ERROR == bytesSent)
         {
@@ -146,18 +207,40 @@ int main()
             WSACleanup();
             return -1;
         }
+        receive_ts = GetTickCount();
+        average_RTT += (receive_ts - send_ts);         
+    }
 
-        recvBuff[bytesRecv] = '\0'; //add the null-terminating to make it a string
-        cout << "Time Client: Recieved: " << bytesRecv << " bytes of \"" << recvBuff << "\" message.\n";
-
-        
-    }while (userInput[0] != 'q' || userInput[0] != 'Q');
-
-    
-    
+    return average_RTT / 100.0; 
+   
 }
 
 
+int sendMessage(const char *message) {
+    strcpy(sendBuff, message);
+    int bytesSent = sendto(connSocket, sendBuff, (int)strlen(sendBuff), 0, (const sockaddr*)&server, sizeof(server));
+    if (SOCKET_ERROR == bytesSent)
+    {
+        cout << "Time Client: Error at sendto(): " << WSAGetLastError() << endl;
+        closesocket(connSocket);
+        WSACleanup();
+        return -1;
+    }
+
+    // Gets the server's answer using simple recieve (no need to hold the server's address).
+    int bytesRecv = recv(connSocket, recvBuff, 255, 0);
+    if (SOCKET_ERROR == bytesRecv)
+    {
+        cout << "Time Client: Error at recv(): " << WSAGetLastError() << endl;
+        closesocket(connSocket);
+        WSACleanup();
+        return -1;
+    }
+
+    recvBuff[bytesRecv] = '\0'; //add the null-terminating to make it a string
+
+    return bytesRecv; 
+}
 
 void displayMenu() {
     std::cout << "\n\nChoose one of the following options\n";

@@ -7,6 +7,7 @@ using namespace std;
 #include <winsock2.h>
 #include <string.h>
 #include <time.h>
+#include<windows.h>
 #include "TimeServer.h"
 
 
@@ -110,7 +111,9 @@ int main() {
 	std::cout << "Waiting for clients..\n";	
 
 	while (true) {
-		memset(sendBuff, 0, sizeof(sendBuff));
+		memset(sendBuff, 0, sizeof(sendBuff));  // SHOULD BE REMOVED
+		
+
 		bytesRecv = recvfrom(m_socket, recvBuff, 255, 0, &client_addr, &client_addr_len);
 		if (SOCKET_ERROR == bytesRecv)
 		{
@@ -121,6 +124,7 @@ int main() {
 		}
 
 		recvBuff[bytesRecv] = '\0'; //add the null-terminating to make it a string
+		currentTime = time(NULL);
 		std::cout << "Time Server: Recieved: " << bytesRecv << " bytes of \"" << recvBuff << "\" message.\n";
 
 	
@@ -132,20 +136,18 @@ int main() {
 			std::cout << "param: "<< param << endl;
 		}
 
-		if (!param)
-		{
-			if (strcmp(command, "time") == 0) {
-				GetTime(currentTime, sendBuff);				
-			}
-			else {
-				strcpy(sendBuff, "Unrecognized request :(");
-			}
+		if (!param && strcmp(command, "time") == 0)
+		{			
+			GetTime(currentTime, sendBuff);									
 		}
 		else if (strcmp(param, "HH:MM:ss") == 0) {
 			GetTimeWithoutDate(currentTime, sendBuff);
 		}
 		else if (strcmp(param, "HH:MM") == 0) {
 			GetTime_HH_MM(currentTime, sendBuff);
+		}
+		else if (strcmp(param, "epoch") == 0) {
+			GetTimeSinceEpoch(currentTime, sendBuff);
 		}
 		else if (strcmp(param, "YYYY") == 0){
 			GetYear(currentTime, sendBuff);
@@ -164,6 +166,12 @@ int main() {
 		}
 		else if (strcmp(command, "timezone") == 0) {
 			GetTimeInCity(param, currentTime, sendBuff);
+		}
+		else if (strcmp(command, "diagnostics") == 0) {			
+			DWORD tick = GetTickCount();
+			strcpy(sendBuff, std::to_string(tick).c_str());			
+		}else {
+			strcpy(sendBuff, "Unrecognized request :(");
 		}
 	
 
@@ -272,13 +280,12 @@ void GetTimeInCity(std::string cityName, const time_t &rawTime, char* buffer){
 	else {
 		strftime(buffer, MAX_SIZE, "UTC time %R", timeinfo);
 	}
+
 	
 }
 
-void GetTimeSinceEpoch(const time_t &rawTime, char* buffer){
-	time_t seconds_since_epoch = time(NULL);
-	struct tm* timeinfo = localtime(&seconds_since_epoch);	
-	strcpy(buffer, asctime(timeinfo));
+static void GetTimeSinceEpoch(time_t currentTime, char* sendBuff) {
+	strcpy(sendBuff, std::to_string(currentTime).c_str());
 }
 
 

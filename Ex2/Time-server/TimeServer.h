@@ -12,7 +12,7 @@ void GetTimeWithoutDateInCity();
 
 void GetTimeInCity(std::string cityName, const time_t& rawTime, char* buffer);
 
-void GetTimeSinceEpoch(const time_t& rawTime, char* buffer);
+
 
 
 void GetTime_HH_MM(const time_t& rawTime, char* buffer);
@@ -26,6 +26,9 @@ void GetSecondsSinceMonthStart(const time_t& rawTime, char* buffer);
 void GetWeekOfYear(const time_t& rawTime, char* buffer);
 
 void GetDaylightSaving(const time_t& rawTime, char* buffer);
+
+static void GetTimeSinceEpoch(time_t currentTime, char* sendBuff);
+
 
 
 bool iequals(const string& a, const string& b)
